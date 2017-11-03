@@ -20,27 +20,27 @@
 .set I2C_SDA_REG_OFFSET,6 // GPIO_NUM_2
 
 .macro i2c_wait_quarter_clock
-	wait 10 // 8Mhz /10 = 800kHz
+    wait 10 // 8Mhz /10 = 800kHz
 .endm
 
 .macro i2c_scl_L
-	WRITE_RTC_REG(RTC_GPIO_ENABLE_W1TS_REG, RTC_GPIO_ENABLE_W1TS_S + I2C_SCL_REG_OFFSET, 1, 1)
+    WRITE_RTC_REG(RTC_GPIO_ENABLE_W1TS_REG, RTC_GPIO_ENABLE_W1TS_S + I2C_SCL_REG_OFFSET, 1, 1)
 .endm
 
 .macro i2c_scl_H
-	WRITE_RTC_REG(RTC_GPIO_ENABLE_W1TC_REG, RTC_GPIO_ENABLE_W1TC_S + I2C_SCL_REG_OFFSET, 1, 1)
+    WRITE_RTC_REG(RTC_GPIO_ENABLE_W1TC_REG, RTC_GPIO_ENABLE_W1TC_S + I2C_SCL_REG_OFFSET, 1, 1)
 .endm
     
 .macro i2c_sda_L
-	WRITE_RTC_REG(RTC_GPIO_ENABLE_W1TS_REG, RTC_GPIO_ENABLE_W1TS_S + I2C_SDA_REG_OFFSET, 1, 1)
+    WRITE_RTC_REG(RTC_GPIO_ENABLE_W1TS_REG, RTC_GPIO_ENABLE_W1TS_S + I2C_SDA_REG_OFFSET, 1, 1)
 .endm
 
 .macro i2c_sda_H
-	WRITE_RTC_REG(RTC_GPIO_ENABLE_W1TC_REG, RTC_GPIO_ENABLE_W1TC_S + I2C_SDA_REG_OFFSET, 1, 1)
+    WRITE_RTC_REG(RTC_GPIO_ENABLE_W1TC_REG, RTC_GPIO_ENABLE_W1TC_S + I2C_SDA_REG_OFFSET, 1, 1)
 .endm
 
 .macro i2c_sda_read
-	READ_RTC_REG(RTC_GPIO_IN_REG, RTC_GPIO_IN_NEXT_S + I2C_SDA_REG_OFFSET, 1)
+    READ_RTC_REG(RTC_GPIO_IN_REG, RTC_GPIO_IN_NEXT_S + I2C_SDA_REG_OFFSET, 1)
 .endm
 
     .text
@@ -97,18 +97,18 @@ i2c_write_reg8:
 
 ////////////////////////////////////////////////////////////
 i2c_return_fail:
-	move r0,1
-	ret
+    move r0,1
+    ret
 
 ////////////////////////////////////////////////////////////
 i2c_return_success:
-	move r0,0
-	ret
+    move r0,0
+    ret
     
 ////////////////////////////////////////////////////////////
 i2c_start:
-	WRITE_RTC_REG(RTC_GPIO_OUT_REG, RTC_GPIO_OUT_DATA_S + I2C_SCL_REG_OFFSET, 1, 0)
-	WRITE_RTC_REG(RTC_GPIO_OUT_REG, RTC_GPIO_OUT_DATA_S + I2C_SDA_REG_OFFSET, 1, 0)
+    WRITE_RTC_REG(RTC_GPIO_OUT_REG, RTC_GPIO_OUT_DATA_S + I2C_SCL_REG_OFFSET, 1, 0)
+    WRITE_RTC_REG(RTC_GPIO_OUT_REG, RTC_GPIO_OUT_DATA_S + I2C_SDA_REG_OFFSET, 1, 0)
     
     i2c_sda_L
     i2c_wait_quarter_clock
@@ -129,41 +129,41 @@ i2c_stop:
 ////////////////////////////////////////////////////////////
 // r2: the byte to write
 i2c_write_byte:
-	stage_rst
+    stage_rst
 _i2c_write_byte_next_bit:
-	and r0,r2,0x80
-	psr
-	jump i2c_write_bit
-	lsh r2,r2,1
-	stage_inc 1
-	jumps _i2c_write_byte_next_bit,8,lt
+    and r0,r2,0x80
+    psr
+    jump i2c_write_bit
+    lsh r2,r2,1
+    stage_inc 1
+    jumps _i2c_write_byte_next_bit,8,lt
 
-	psr
-	jump i2c_read_bit
+    psr
+    jump i2c_read_bit
    
-	ret
+    ret
 
 ////////////////////////////////////////////////////////////
 // r2: send ack (0: ACK, 1: NACK)
 i2c_read_byte:
-	push r2
-	move r2,0
-	stage_rst
+    push r2
+    move r2,0
+    stage_rst
 _i2c_read_byte_next_bit:
-	psr
-	jump i2c_read_bit
-	lsh r2,r2,1
-	or r2,r2,r0
-	stage_inc 1
-	jumps _i2c_read_byte_next_bit,8,lt
+    psr
+    jump i2c_read_bit
+    lsh r2,r2,1
+    or r2,r2,r0
+    stage_inc 1
+    jumps _i2c_read_byte_next_bit,8,lt
 
-	pop r0
-	psr
-	jump i2c_write_bit
+    pop r0
+    psr
+    jump i2c_write_bit
 
-	move r0,r2
+    move r0,r2
     
-	ret
+    ret
   
 ////////////////////////////////////////////////////////////
 // r0: the bit to write (0 or 1)    
@@ -171,17 +171,17 @@ i2c_write_bit:
     i2c_wait_quarter_clock
     i2c_scl_L
     i2c_wait_quarter_clock
-	jumpr _i2c_write_bit_0,1,lt
+    jumpr _i2c_write_bit_0,1,lt
 _i2c_write_bit_1:
-	i2c_sda_H
-	jump _i2c_write_tick
+    i2c_sda_H
+    jump _i2c_write_tick
 _i2c_write_bit_0:
-	i2c_sda_L
+    i2c_sda_L
 _i2c_write_tick:
-	i2c_wait_quarter_clock
+    i2c_wait_quarter_clock
     i2c_scl_H
-	i2c_wait_quarter_clock
- 	ret
+    i2c_wait_quarter_clock
+    ret
     
 ////////////////////////////////////////////////////////////
 i2c_read_bit:
@@ -193,7 +193,7 @@ i2c_read_bit:
     i2c_scl_H
     i2c_sda_read
     i2c_wait_quarter_clock
-	ret
+    ret
    
 // Local Variables:
 // mode: asm

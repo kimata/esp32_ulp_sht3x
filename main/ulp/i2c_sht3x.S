@@ -19,26 +19,26 @@
 .set SHT31_CMD_LSB,0x00
 
 ////////////////////////////////////////////////////////////
-	.bss
+    .bss
 
     .global sht3x_sense_value
 sht3x_sense_value: .long 0
     .skip 4
 
 ////////////////////////////////////////////////////////////
-	.text
+    .text
     
     .global sense_sht3x
     .global sht3x_read_value
 
 ////////////////////////////////////////////////////////////
 sense_sht3x:
- 	move r1,SHT31_DEV_ADDR
- 	push r1
- 	move r1,SHT31_CMD_MSB
- 	push r1
- 	move r1,SHT31_CMD_LSB
- 	push r1
+    move r1,SHT31_DEV_ADDR
+    push r1
+    move r1,SHT31_CMD_MSB
+    push r1
+    move r1,SHT31_CMD_LSB
+    push r1
     
     psr
     jump i2c_write_reg8
@@ -49,10 +49,10 @@ sense_sht3x:
     wait (8*8000) // 8ms (RTC_FAST_CLK = 8Mhz)
     wait (8*8000) // 8ms (RTC_FAST_CLK = 8Mhz)
 
- 	move r1,SHT31_DEV_ADDR
- 	push r1
-	move r1,sht3x_sense_value
- 	push r1
+    move r1,SHT31_DEV_ADDR
+    push r1
+    move r1,sht3x_sense_value
+    push r1
     
     psr
     jump sht3x_read_value

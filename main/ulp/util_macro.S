@@ -11,24 +11,24 @@
  */
 
 .macro push rx
-	st \rx,r3,0
-	sub r3,r3,1
+    st \rx,r3,0
+    sub r3,r3,1
 .endm
 
 .macro pop rx
-	add r3,r3,1
-	ld \rx,r3,0
+    add r3,r3,1
+    ld \rx,r3,0
 .endm
     
 .macro psr
-	.set Lret_addr,(.+16)
-	move r1,Lret_addr
-	push r1
+    .set Lret_addr,(.+16)
+    move r1,Lret_addr
+    push r1
 .endm
 
 .macro ret
-	pop r1
-	jump r1
+    pop r1
+    jump r1
 .endm
 
 // Local Variables:

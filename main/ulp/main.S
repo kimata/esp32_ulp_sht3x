@@ -12,25 +12,25 @@
     .set SENSE_BUF_ENTRY,10
     .set SENSE_BUF_SIZE,(SENSE_BUF_ENTRY*SENSE_SIZE)
 
-	.bss
+    .bss
 
-	.global	sense_count
+    .global sense_count
 sense_count: .long 0
 
     .balign 4
-	.global	sense_data
+    .global sense_data
 sense_data: .long 0
     .skip SENSE_BUF_SIZE
 
-	.global stack
+    .global stack
 stack:
-	.skip 100
-	.global stackEnd
+    .skip 100
+    .global stackEnd
 stackEnd:
-	.long 0
+    .long 0
 
-	.text
-	.global entry
+    .text
+    .global entry
 entry:
     move r3,stackEnd
     
@@ -53,7 +53,7 @@ entry:
 
 _sense_data_pos:
     sub r0,r0,1
-	jumpr _copy_sense_data,1,lt
+    jumpr _copy_sense_data,1,lt
     add r1,r1,SENSE_SIZE
     jump _sense_data_pos
 
@@ -83,7 +83,7 @@ wake_cpu:
     
     wake
     // stop wake up timer
-	WRITE_RTC_FIELD(RTC_CNTL_STATE0_REG, RTC_CNTL_ULP_CP_SLP_TIMER_EN, 0)
+    WRITE_RTC_FIELD(RTC_CNTL_STATE0_REG, RTC_CNTL_ULP_CP_SLP_TIMER_EN, 0)
 
 exit:   
     halt
