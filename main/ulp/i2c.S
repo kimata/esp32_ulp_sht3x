@@ -17,10 +17,10 @@
 #include "util_macro.S"
 
 .set I2C_SCL_REG_OFFSET,7 // GPIO_NUM_26
-.set I2C_SDA_REG_OFFSET,6 // GPIO_NUM_2
+.set I2C_SDA_REG_OFFSET,6 // GPIO_NUM_25
 
 .macro i2c_wait_quarter_clock
-    wait 10 // 8Mhz /10 = 800kHz
+    wait 10 // 8Mhz /10 = 800kHz, clock = 800kHz /4 = 200kHz
 .endm
 
 .macro i2c_scl_L

@@ -1,5 +1,13 @@
 /*
- * Demo of I2C ULP routines
+ * ESP32 ULP Program
+ *
+ * Copyright (C) 2017 KIMATA Tetsuya <kimata@green-rabbit.net>
+ *
+ * This program is free software ; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation, version 2.
+ *
+ * Bibliography: https://github.com/tomtor/ulp-i2c
  */
 
 #include "soc/rtc_cntl_reg.h"
@@ -10,7 +18,7 @@
 
     .set SENSE_SIZE,4
     .set SENSE_BUF_ENTRY,10
-    .set SENSE_BUF_SIZE,(SENSE_BUF_ENTRY*SENSE_SIZE)
+    .set SENSE_BUF_SIZE,(4*SENSE_BUF_ENTRY*SENSE_SIZE)
 
     .bss
 

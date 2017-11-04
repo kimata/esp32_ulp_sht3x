@@ -15,9 +15,11 @@
 #include "driver/rtc_io.h"
 #include "lwip/sockets.h"
 
+#define LOG_LOCAL_LEVEL ESP_LOG_INFO
 #include "esp_log.h"
 #include "esp_wifi.h"
 #include "esp_event_loop.h"
+#include "esp_task_wdt.h"
 #include "esp32/ulp.h"
 
 #include <stdbool.h>
@@ -29,14 +31,20 @@
 
 ////////////////////////////////////////////////////////////
 // Configuration
-#define FLUENTD_IP    "192.168.2.20"    // IP address of Fluentd
-#define FLUENTD_PORT  8888              // Port of FLuentd
-#define FLUENTD_TAG   "/test"           // Fluentd tag
+#define FLUENTD_IP      "192.168.2.20"  // IP address of Fluentd
+#define FLUENTD_PORT    8888            // Port of FLuentd
+#define FLUENTD_TAG     "/test"         // Fluentd tag
 
-#define WIFI_HOSTNAME "sht3x-sensor"    // module's hostname
-#define SENSE_SEC 60                    // sensing interval
-#define SENSE_COUNT 10                  // buffering count
+#define WIFI_HOSTNAME   "sht3x-sensor"  // module's hostname
+#define SENSE_INTERVAL  30              // sensing interval
+#define SENSE_COUNT     10              // buffering count
+
+/* #define WIFI_SSID "XXXXXXXX" */
+/* #define WIFI_PASS "XXXXXXXX" */
+
 ////////////////////////////////////////////////////////////
+
+#define WIFI_CONNECT_TIMEOUT 10
 
 typedef enum {
     wifi_connected,
@@ -144,7 +152,7 @@ static void init_ulp_program()
     );
 
     REG_SET_FIELD(SENS_ULP_CP_SLEEP_CYC0_REG, SENS_SLEEP_CYCLES_S0,
-        rtc_clk_slow_freq_get_hz()*SENSE_SEC);
+        rtc_clk_slow_freq_get_hz()*SENSE_INTERVAL);
 }
 
 static void connect_wifi()
@@ -195,10 +203,10 @@ static int connect_server()
     server.sin_addr.s_addr = inet_addr(FLUENTD_IP);
 
     if (connect(sock, (struct sockaddr *)&server, sizeof(server)) != 0) {
-        ESP_LOGE(TAG, "CONNECT FAILED errno=%d", errno);
+        ESP_LOGE(TAG, "FLUENTD CONNECT FAILED errno=%d", errno);
         return -1;
     }
-    ESP_LOGI(TAG, "CONNECT SUCCESS");
+    ESP_LOGI(TAG, "FLUENTD CONNECT SUCCESS");
 
     return sock;
 }
@@ -211,14 +219,14 @@ static cJSON *sense_json()
 
     for (uint32_t i = 0; i < SENSE_COUNT; i++) {
         if (!sense_data_check_crc(sense_data + i)) {
-            ESP_LOGE(TAG, "CRC ERROR OCCURED");
+            ESP_LOGE(TAG, "CRC ERROR OCCURED (%d)", i);
             continue;
         }
         cJSON *item = cJSON_CreateObject();
         cJSON_AddNumberToObject(item, "temp", sense_calc_temp(sense_data + i));
         cJSON_AddNumberToObject(item, "humi", sense_calc_humi(sense_data + i));
         cJSON_AddStringToObject(item, "hostname", WIFI_HOSTNAME);
-        cJSON_AddNumberToObject(item, "self_time", SENSE_SEC * i); // negative offset
+        cJSON_AddNumberToObject(item, "self_time", SENSE_INTERVAL * i); // negative offset
         cJSON_AddItemToArray(root, item);
     }
 
@@ -230,7 +238,13 @@ static void process_sense_data()
     char buffer[sizeof(EXPECTED_RESPONSE)];
     connect_wifi();
 
-    while (witi_status != wifi_connected);
+    uint32_t time_start = xTaskGetTickCount();
+    while (witi_status != wifi_connected) {
+        if ((xTaskGetTickCount() - time_start)> (WIFI_CONNECT_TIMEOUT * 1000 / portTICK_PERIOD_MS)) {
+            ESP_LOGE(TAG, "WIFI CONNECT TIMECOUT");
+            return;
+        }
+    }
 
     int sock = connect_server();
     if (sock == -1) {
@@ -242,7 +256,7 @@ static void process_sense_data()
 
     do {
         if (dprintf(sock, REQUEST, strlen("json=") + strlen(json_str), json_str) < 0) {
-            ESP_LOGE(TAG, "POST FAILED");
+            ESP_LOGE(TAG, "FLUENTD POST FAILED");
             break;
         }
 
@@ -250,10 +264,10 @@ static void process_sense_data()
         read(sock, buffer, sizeof(buffer)-1);
 
         if (strcmp(buffer, EXPECTED_RESPONSE) != 0) {
-            ESP_LOGE(TAG, "POST FAILED");
+            ESP_LOGE(TAG, "FLUENTD POST FAILED");
             break;
         }
-        ESP_LOGI(TAG, "POST SUCCESSFUL");
+        ESP_LOGI(TAG, "FLUENTD POST SUCCESSFUL");
     } while (0);
 
     close(sock);
@@ -262,7 +276,7 @@ static void process_sense_data()
 
 void app_main()
 {
-    esp_log_level_set("*", ESP_LOG_ERROR);
+    esp_log_level_set("wifi", ESP_LOG_ERROR);
 
     if (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_ULP) {
         init_ulp_program();
