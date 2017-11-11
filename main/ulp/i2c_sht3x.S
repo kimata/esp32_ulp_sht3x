@@ -23,7 +23,7 @@
 
     .global sht3x_sense_value
 sht3x_sense_value: .long 0
-    .skip 4
+    .skip 16
 
 ////////////////////////////////////////////////////////////
     .text

@@ -20,6 +20,7 @@
 #include "esp_wifi.h"
 #include "esp_event_loop.h"
 #include "esp_task_wdt.h"
+#include "esp_adc_cal.h"
 #include "esp32/ulp.h"
 
 #include <stdbool.h>
@@ -36,12 +37,18 @@
 #define FLUENTD_TAG     "/test"         // Fluentd tag
 
 #define WIFI_HOSTNAME   "sht3x-sensor"  // module's hostname
-#define SENSE_INTERVAL  30              // sensing interval
-#define SENSE_COUNT     10              // buffering count
+#define SENSE_INTERVAL  3               // sensing interval
+#define SENSE_COUNT     3               // buffering count
 
 /* #define WIFI_SSID "XXXXXXXX" */
 /* #define WIFI_PASS "XXXXXXXX" */
 
+#define ADC_VREF        1128            // ADC calibration data
+////////////////////////////////////////////////////////////
+const gpio_num_t gpio_scl = GPIO_NUM_26;
+const gpio_num_t gpio_sda = GPIO_NUM_25;
+
+#define BATTERY_ADC_CH  ADC1_CHANNEL_4  //GPIO 32
 ////////////////////////////////////////////////////////////
 
 #define WIFI_CONNECT_TIMEOUT 10
@@ -53,9 +60,6 @@ typedef enum {
 
 extern const uint8_t ulp_main_bin_start[] asm("_binary_ulp_main_bin_start");
 extern const uint8_t ulp_main_bin_end[]   asm("_binary_ulp_main_bin_end");
-
-const gpio_num_t gpio_scl = GPIO_NUM_26;
-const gpio_num_t gpio_sda = GPIO_NUM_25;
 
 #define TAG "ulp_sht3x"
 #define EXPECTED_RESPONSE "HTTP/1.1 200 OK"
@@ -211,7 +215,7 @@ static int connect_server()
     return sock;
 }
 
-static cJSON *sense_json()
+static cJSON *sense_json(uint32_t battery_volt)
 {
     sense_data_t *sense_data = (sense_data_t *)&ulp_sense_data;
 
@@ -227,15 +231,36 @@ static cJSON *sense_json()
         cJSON_AddNumberToObject(item, "humi", sense_calc_humi(sense_data + i));
         cJSON_AddStringToObject(item, "hostname", WIFI_HOSTNAME);
         cJSON_AddNumberToObject(item, "self_time", SENSE_INTERVAL * i); // negative offset
+
+        if (i == 0) {
+            cJSON_AddNumberToObject(item, "battery", battery_volt);
+        }
+
         cJSON_AddItemToArray(root, item);
     }
 
     return root;
 }
 
+uint32_t get_battery_voltage(void)
+{
+    esp_adc_cal_characteristics_t characteristics;
+
+    adc1_config_width(ADC_WIDTH_BIT_12);
+    adc1_config_channel_atten(BATTERY_ADC_CH, ADC_ATTEN_11db);
+    esp_adc_cal_get_characteristics(ADC_VREF, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_12,
+                                    &characteristics);
+
+    return adc1_to_voltage(BATTERY_ADC_CH, &characteristics);
+}
+
 static void process_sense_data()
 {
     char buffer[sizeof(EXPECTED_RESPONSE)];
+    uint32_t battery_volt;
+
+    battery_volt =get_battery_voltage();
+
     connect_wifi();
 
     uint32_t time_start = xTaskGetTickCount();
@@ -251,7 +276,7 @@ static void process_sense_data()
         return;
     }
 
-    cJSON *json = sense_json();
+    cJSON *json = sense_json(battery_volt);
     char *json_str = cJSON_PrintUnformatted(json);
 
     do {
