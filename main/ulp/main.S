@@ -19,6 +19,18 @@
 .set SENSE_SIZE,4
 .set SENSE_BUF_ENTRY,10
 .set SENSE_BUF_SIZE,(4*SENSE_BUF_ENTRY*SENSE_SIZE)
+
+.set BYPASS_MODE_REG_OFFSET,8 // GPIO_NUM_33
+    
+// set TPS61291 Bypass Mode
+.macro set_bypass_mode
+    WRITE_RTC_REG(RTC_GPIO_ENABLE_W1TS_REG, RTC_GPIO_ENABLE_W1TS_S + BYPASS_MODE_REG_OFFSET, 1, 1)
+.endm
+
+// set TPS61291 Boost Mode
+.macro set_boost_mode
+    WRITE_RTC_REG(RTC_GPIO_ENABLE_W1TC_REG, RTC_GPIO_ENABLE_W1TC_S + BYPASS_MODE_REG_OFFSET, 1, 1)
+.endm
     
     .bss
 
@@ -50,6 +62,8 @@ entry:
     and r0, r0, 1
     jump exit, eq
 
+    set_bypass_mode
+    
     sleep 0
 
     psr

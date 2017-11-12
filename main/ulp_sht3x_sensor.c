@@ -47,7 +47,8 @@
 ////////////////////////////////////////////////////////////
 const gpio_num_t gpio_scl    = GPIO_NUM_26;
 const gpio_num_t gpio_sda    = GPIO_NUM_25;
-const gpio_num_t gpio_bypass = GPIO_NUM_33; // UNUSED
+const gpio_num_t gpio_bypass = GPIO_NUM_33;
+
 
 #define BATTERY_ADC_CH  ADC1_CHANNEL_4  //GPIO 32
 #define BATTERY_LOW     2400
@@ -149,6 +150,11 @@ static void init_ulp_program()
     ESP_ERROR_CHECK(rtc_gpio_set_direction(gpio_scl, RTC_GPIO_MODE_INPUT_ONLY));
     ESP_ERROR_CHECK(rtc_gpio_init(gpio_sda));
     ESP_ERROR_CHECK(rtc_gpio_set_direction(gpio_sda, RTC_GPIO_MODE_INPUT_ONLY));
+
+    // GPIO33 route to digital io_mux
+    REG_CLR_BIT(RTC_IO_XTAL_32K_PAD_REG, RTC_IO_X32N_MUX_SEL);
+    ESP_ERROR_CHECK(rtc_gpio_init(gpio_bypass));
+    ESP_ERROR_CHECK(rtc_gpio_set_direction(gpio_bypass, RTC_GPIO_MODE_INPUT_ONLY));
 
     ESP_ERROR_CHECK(
         ulp_load_binary(
@@ -319,11 +325,11 @@ void app_main()
         }
     }
 
-    ESP_LOGI(TAG, "Sleeping...");
+    ESP_LOGI(TAG, "Go to sleep");
 
     ulp_sense_count = SENSE_COUNT;
     ESP_ERROR_CHECK(esp_sleep_enable_ulp_wakeup());
     ESP_ERROR_CHECK(ulp_run((&ulp_entry - RTC_SLOW_MEM) / sizeof(uint32_t)));
 
-    esp_deep_sleep_start();
+   esp_deep_sleep_start();
 }
