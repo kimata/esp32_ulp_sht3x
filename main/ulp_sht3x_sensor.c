@@ -37,7 +37,7 @@
 #define FLUENTD_TAG     "/test"         // Fluentd tag
 
 #define WIFI_HOSTNAME   "sht3x-sensor"  // module's hostname
-#define SENSE_INTERVAL  3               // sensing interval
+#define SENSE_INTERVAL  5               // sensing interval
 #define SENSE_COUNT     3               // buffering count
 
 /* #define WIFI_SSID "XXXXXXXX" */
@@ -45,10 +45,12 @@
 
 #define ADC_VREF        1128            // ADC calibration data
 ////////////////////////////////////////////////////////////
-const gpio_num_t gpio_scl = GPIO_NUM_26;
-const gpio_num_t gpio_sda = GPIO_NUM_25;
+const gpio_num_t gpio_scl    = GPIO_NUM_26;
+const gpio_num_t gpio_sda    = GPIO_NUM_25;
+const gpio_num_t gpio_bypass = GPIO_NUM_33; // UNUSED
 
 #define BATTERY_ADC_CH  ADC1_CHANNEL_4  //GPIO 32
+#define BATTERY_LOW     2400
 ////////////////////////////////////////////////////////////
 
 #define WIFI_CONNECT_TIMEOUT 10
@@ -143,10 +145,10 @@ static float sense_calc_humi(sense_data_t *sense_data) {
 
 static void init_ulp_program()
 {
-    rtc_gpio_init(gpio_scl);
-    rtc_gpio_set_direction(gpio_scl, RTC_GPIO_MODE_INPUT_ONLY);
-    rtc_gpio_init(gpio_sda);
-    rtc_gpio_set_direction(gpio_sda, RTC_GPIO_MODE_INPUT_ONLY);
+    ESP_ERROR_CHECK(rtc_gpio_init(gpio_scl));
+    ESP_ERROR_CHECK(rtc_gpio_set_direction(gpio_scl, RTC_GPIO_MODE_INPUT_ONLY));
+    ESP_ERROR_CHECK(rtc_gpio_init(gpio_sda));
+    ESP_ERROR_CHECK(rtc_gpio_set_direction(gpio_sda, RTC_GPIO_MODE_INPUT_ONLY));
 
     ESP_ERROR_CHECK(
         ulp_load_binary(
@@ -254,12 +256,9 @@ uint32_t get_battery_voltage(void)
     return adc1_to_voltage(BATTERY_ADC_CH, &characteristics);
 }
 
-static void process_sense_data()
+static void process_sense_data(uint32_t battery_volt)
 {
     char buffer[sizeof(EXPECTED_RESPONSE)];
-    uint32_t battery_volt;
-
-    battery_volt =get_battery_voltage();
 
     connect_wifi();
 
@@ -301,13 +300,26 @@ static void process_sense_data()
 
 void app_main()
 {
+    uint32_t battery_volt;
+
     esp_log_level_set("wifi", ESP_LOG_ERROR);
+
+    battery_volt = get_battery_voltage();
 
     if (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_ULP) {
         init_ulp_program();
     } else {
-        process_sense_data();
+        process_sense_data(battery_volt);
     }
+
+    uint32_t time_start = xTaskGetTickCount();
+    while (true) {
+        if ((xTaskGetTickCount() - time_start)> (3 * 1000 / portTICK_PERIOD_MS)) {
+            break;
+        }
+    }
+
+    ESP_LOGI(TAG, "Sleeping...");
 
     ulp_sense_count = SENSE_COUNT;
     ESP_ERROR_CHECK(esp_sleep_enable_ulp_wakeup());

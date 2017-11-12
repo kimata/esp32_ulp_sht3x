@@ -16,10 +16,10 @@
 
 #include "util_macro.S"
 
-    .set SENSE_SIZE,4
-    .set SENSE_BUF_ENTRY,10
-    .set SENSE_BUF_SIZE,(4*SENSE_BUF_ENTRY*SENSE_SIZE)
-
+.set SENSE_SIZE,4
+.set SENSE_BUF_ENTRY,10
+.set SENSE_BUF_SIZE,(4*SENSE_BUF_ENTRY*SENSE_SIZE)
+    
     .bss
 
     .global sense_count
@@ -41,7 +41,7 @@ stackEnd:
     .global entry
 entry:
     move r3,stackEnd
-    
+   
     // Check whether CPU is in deep sleep or not
     //
     // https://github.com/espressif/esp-idf/issues/484
@@ -51,10 +51,10 @@ entry:
     jump exit, eq
 
     sleep 0
-    
+
     psr
     jump sense_sht3x
-
+   
     move r2,sense_count
     ld r0,r2,0
     move r1,sense_data
@@ -82,6 +82,7 @@ _copy_sense_data:
     sub r0,r0,1
     jumpr wake_cpu,1,lt
     st r0,r2,0
+    
     halt
 
 wake_cpu:
