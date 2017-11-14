@@ -107,9 +107,6 @@ i2c_return_success:
     
 ////////////////////////////////////////////////////////////
 i2c_start:
-    WRITE_RTC_REG(RTC_GPIO_OUT_REG, RTC_GPIO_OUT_DATA_S + I2C_SCL_REG_OFFSET, 1, 0)
-    WRITE_RTC_REG(RTC_GPIO_OUT_REG, RTC_GPIO_OUT_DATA_S + I2C_SDA_REG_OFFSET, 1, 0)
-    
     i2c_sda_L
     i2c_wait_quarter_clock
   

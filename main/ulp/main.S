@@ -20,15 +20,16 @@
 .set SENSE_BUF_ENTRY,10
 .set SENSE_BUF_SIZE,(4*SENSE_BUF_ENTRY*SENSE_SIZE)
 
-.set BYPASS_MODE_REG_OFFSET,8 // GPIO_NUM_33
+.set BYPASS_MODE_REG_OFFSET,16 // GPIO_NUM_14
     
-// set TPS61291 Bypass Mode
+//set TPS61291 Bypass Mode
 .macro set_bypass_mode
     WRITE_RTC_REG(RTC_GPIO_ENABLE_W1TS_REG, RTC_GPIO_ENABLE_W1TS_S + BYPASS_MODE_REG_OFFSET, 1, 1)
 .endm
 
 // set TPS61291 Boost Mode
 .macro set_boost_mode
+    WRITE_RTC_REG(RTC_IO_TOUCH_PAD6_REG,RTC_IO_TOUCH_PAD6_HOLD_S,1,0)
     WRITE_RTC_REG(RTC_GPIO_ENABLE_W1TC_REG, RTC_GPIO_ENABLE_W1TC_S + BYPASS_MODE_REG_OFFSET, 1, 1)
 .endm
     
@@ -53,7 +54,9 @@ stackEnd:
     .global entry
 entry:
     move r3,stackEnd
-   
+
+    set_bypass_mode
+    
     // Check whether CPU is in deep sleep or not
     //
     // https://github.com/espressif/esp-idf/issues/484
@@ -61,14 +64,12 @@ entry:
     READ_RTC_REG(RTC_CNTL_DIAG0_REG, 19, 1)
     and r0, r0, 1
     jump exit, eq
-
-    set_bypass_mode
-    
+   
     sleep 0
-
+   
     psr
     jump sense_sht3x
-   
+
     move r2,sense_count
     ld r0,r2,0
     move r1,sense_data
@@ -100,6 +101,8 @@ _copy_sense_data:
     halt
 
 wake_cpu:
+    set_boost_mode
+    
     // reset sense_count
     move r0,0
     st r0,r2,0

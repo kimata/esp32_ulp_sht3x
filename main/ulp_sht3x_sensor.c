@@ -37,18 +37,17 @@
 #define FLUENTD_TAG     "/test"         // Fluentd tag
 
 #define WIFI_HOSTNAME   "sht3x-sensor"  // module's hostname
-#define SENSE_INTERVAL  5               // sensing interval
-#define SENSE_COUNT     3               // buffering count
+#define SENSE_INTERVAL  30              // sensing interval
+#define SENSE_COUNT     10              // buffering count
 
-/* #define WIFI_SSID "XXXXXXXX" */
-/* #define WIFI_PASS "XXXXXXXX" */
+/* #define WIFI_SSID "XXXXXXXX"            // WiFi SSID */
+/* #define WIFI_PASS "XXXXXXXX"            // WiFi Password */
 
 #define ADC_VREF        1128            // ADC calibration data
 ////////////////////////////////////////////////////////////
 const gpio_num_t gpio_scl    = GPIO_NUM_26;
 const gpio_num_t gpio_sda    = GPIO_NUM_25;
-const gpio_num_t gpio_bypass = GPIO_NUM_33;
-
+const gpio_num_t gpio_bypass = GPIO_NUM_14;
 
 #define BATTERY_ADC_CH  ADC1_CHANNEL_4  //GPIO 32
 #define BATTERY_LOW     2400
@@ -72,7 +71,7 @@ extern const uint8_t ulp_main_bin_end[]   asm("_binary_ulp_main_bin_end");
     "\r\n" \
     "json=%s"
 
-static volatile wifi_status_t witi_status = wifi_disconnected;
+static volatile wifi_status_t wifi_status = wifi_disconnected;
 
 
 uint8_t crc8(const uint8_t *data, uint32_t len) {
@@ -110,11 +109,11 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
         break;
     case SYSTEM_EVENT_STA_GOT_IP:
         ESP_LOGI(TAG, "SYSTEM_EVENT_STA_GOT_IP");
-        witi_status = wifi_connected;
+        wifi_status = wifi_connected;
         break;
     case SYSTEM_EVENT_STA_DISCONNECTED:
         ESP_ERROR_CHECK(esp_wifi_connect());
-        witi_status = wifi_disconnected;
+        wifi_status = wifi_disconnected;
         break;
     default:
         break;
@@ -151,10 +150,13 @@ static void init_ulp_program()
     ESP_ERROR_CHECK(rtc_gpio_init(gpio_sda));
     ESP_ERROR_CHECK(rtc_gpio_set_direction(gpio_sda, RTC_GPIO_MODE_INPUT_ONLY));
 
-    // GPIO33 route to digital io_mux
-    REG_CLR_BIT(RTC_IO_XTAL_32K_PAD_REG, RTC_IO_X32N_MUX_SEL);
     ESP_ERROR_CHECK(rtc_gpio_init(gpio_bypass));
-    ESP_ERROR_CHECK(rtc_gpio_set_direction(gpio_bypass, RTC_GPIO_MODE_INPUT_ONLY));
+    ESP_ERROR_CHECK(rtc_gpio_set_level(gpio_bypass, 1));
+    ESP_ERROR_CHECK(rtc_gpio_pulldown_en(gpio_bypass));
+    ESP_ERROR_CHECK(rtc_gpio_pullup_dis(gpio_bypass));
+    ESP_ERROR_CHECK(rtc_gpio_set_direction(gpio_bypass, RTC_GPIO_MODE_OUTPUT_ONLY));
+    /* ESP_ERROR_CHECK(rtc_gpio_hold_en(gpio_bypass)); */
+
 
     ESP_ERROR_CHECK(
         ulp_load_binary(
@@ -192,14 +194,16 @@ static void connect_wifi()
             .password = WIFI_PASS,
         },
     };
-    esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
-#else
-    wifi_config_t wifi_config;
-    esp_wifi_get_config(WIFI_IF_STA, &wifi_config);
-#endif
+    wifi_config_t wifi_config_cur;
+    ESP_ERROR_CHECK(esp_wifi_get_config(WIFI_IF_STA, &wifi_config_cur));
 
+    if (strcmp((const char *)wifi_config_cur.sta.ssid, (const char *)wifi_config.sta.ssid) ||
+        strcmp((const char *)wifi_config_cur.sta.password, (const char *)wifi_config.sta.password)) {
+        ESP_LOGI(TAG, "SAVE WIFI CONFIG");
+        ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
+    }
+#endif
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
 }
 
@@ -269,7 +273,7 @@ static void process_sense_data(uint32_t battery_volt)
     connect_wifi();
 
     uint32_t time_start = xTaskGetTickCount();
-    while (witi_status != wifi_connected) {
+    while (wifi_status != wifi_connected) {
         if ((xTaskGetTickCount() - time_start)> (WIFI_CONNECT_TIMEOUT * 1000 / portTICK_PERIOD_MS)) {
             ESP_LOGE(TAG, "WIFI CONNECT TIMECOUT");
             return;
@@ -308,7 +312,7 @@ void app_main()
 {
     uint32_t battery_volt;
 
-    esp_log_level_set("wifi", ESP_LOG_ERROR);
+    /* esp_log_level_set("wifi", ESP_LOG_ERROR); */
 
     battery_volt = get_battery_voltage();
 
@@ -331,5 +335,5 @@ void app_main()
     ESP_ERROR_CHECK(esp_sleep_enable_ulp_wakeup());
     ESP_ERROR_CHECK(ulp_run((&ulp_entry - RTC_SLOW_MEM) / sizeof(uint32_t)));
 
-   esp_deep_sleep_start();
+    esp_deep_sleep_start();
 }
