@@ -312,7 +312,7 @@ void app_main()
 {
     uint32_t battery_volt;
 
-    /* esp_log_level_set("wifi", ESP_LOG_ERROR); */
+    esp_log_level_set("wifi", ESP_LOG_ERROR);
 
     battery_volt = get_battery_voltage();
 

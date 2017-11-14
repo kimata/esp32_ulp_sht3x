@@ -29,7 +29,7 @@
 
 // set TPS61291 Boost Mode
 .macro set_boost_mode
-    WRITE_RTC_REG(RTC_IO_TOUCH_PAD6_REG,RTC_IO_TOUCH_PAD6_HOLD_S,1,0)
+    WRITE_RTC_REG(RTC_IO_TOUCH_PAD6_REG,RTC_IO_TOUCH_PAD6_HOLD_S,1,0)    
     WRITE_RTC_REG(RTC_GPIO_ENABLE_W1TC_REG, RTC_GPIO_ENABLE_W1TC_S + BYPASS_MODE_REG_OFFSET, 1, 1)
 .endm
     
@@ -54,9 +54,7 @@ stackEnd:
     .global entry
 entry:
     move r3,stackEnd
-
-    set_bypass_mode
-    
+   
     // Check whether CPU is in deep sleep or not
     //
     // https://github.com/espressif/esp-idf/issues/484
@@ -66,9 +64,13 @@ entry:
     jump exit, eq
    
     sleep 0
-   
+
+    set_boost_mode
+    
     psr
     jump sense_sht3x
+
+    set_bypass_mode    
 
     move r2,sense_count
     ld r0,r2,0
