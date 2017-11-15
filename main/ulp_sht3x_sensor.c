@@ -50,10 +50,10 @@ const gpio_num_t gpio_sda    = GPIO_NUM_25;
 const gpio_num_t gpio_bypass = GPIO_NUM_14;
 
 #define BATTERY_ADC_CH  ADC1_CHANNEL_4  //GPIO 32
-#define BATTERY_LOW     2400
 ////////////////////////////////////////////////////////////
 
 #define WIFI_CONNECT_TIMEOUT 10
+#define CLOCK_MEASURE   1024
 
 typedef enum {
     wifi_connected,
@@ -164,9 +164,6 @@ static void init_ulp_program()
             (ulp_main_bin_end - ulp_main_bin_start) / sizeof(uint32_t)
         )
     );
-
-    REG_SET_FIELD(SENS_ULP_CP_SLEEP_CYC0_REG, SENS_SLEEP_CYCLES_S0,
-        rtc_clk_slow_freq_get_hz()*SENSE_INTERVAL);
 }
 
 static void connect_wifi()
@@ -308,6 +305,13 @@ static void process_sense_data(uint32_t battery_volt)
     cJSON_Delete(json);
 }
 
+void set_sleep_period()
+{
+    REG_SET_FIELD(SENS_ULP_CP_SLEEP_CYC0_REG, SENS_SLEEP_CYCLES_S0,
+                  rtc_time_us_to_slowclk((uint64_t)(SENSE_INTERVAL) * 1e6,
+                                         rtc_clk_cal(RTC_CAL_RTC_MUX , CLOCK_MEASURE)));
+}
+
 void app_main()
 {
     uint32_t battery_volt;
@@ -322,12 +326,7 @@ void app_main()
         process_sense_data(battery_volt);
     }
 
-    uint32_t time_start = xTaskGetTickCount();
-    while (true) {
-        if ((xTaskGetTickCount() - time_start)> (3 * 1000 / portTICK_PERIOD_MS)) {
-            break;
-        }
-    }
+    set_sleep_period();
 
     ESP_LOGI(TAG, "Go to sleep");
 
