@@ -37,8 +37,8 @@
 #define FLUENTD_TAG     "/test"         // Fluentd tag
 
 #define WIFI_HOSTNAME   "sht3x-sensor"  // module's hostname
-#define SENSE_INTERVAL  30              // sensing interval
-#define SENSE_COUNT     10              // buffering count
+#define SENSE_INTERVAL  3              // sensing interval
+#define SENSE_COUNT     3              // buffering count
 
 /* #define WIFI_SSID "XXXXXXXX"            // WiFi SSID */
 /* #define WIFI_PASS "XXXXXXXX"            // WiFi Password */
