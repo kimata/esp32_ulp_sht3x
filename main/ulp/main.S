@@ -24,16 +24,17 @@
     
 //set TPS61291 Bypass Mode
 .macro set_bypass_mode
-    WRITE_RTC_REG(RTC_GPIO_ENABLE_W1TS_REG, RTC_GPIO_ENABLE_W1TS_S + BYPASS_MODE_REG_OFFSET, 1, 1)
+    WRITE_RTC_REG(RTC_IO_TOUCH_PAD6_REG,RTC_IO_TOUCH_PAD6_HOLD_S,1,0)
 .endm
 
 // set TPS61291 Boost Mode
 .macro set_boost_mode
-    WRITE_RTC_REG(RTC_IO_TOUCH_PAD6_REG,RTC_IO_TOUCH_PAD6_HOLD_S,1,0)    
-    WRITE_RTC_REG(RTC_GPIO_ENABLE_W1TC_REG, RTC_GPIO_ENABLE_W1TC_S + BYPASS_MODE_REG_OFFSET, 1, 1)
+    WRITE_RTC_REG(RTC_IO_TOUCH_PAD6_REG,RTC_IO_TOUCH_PAD6_HOLD_S,1,1)
 .endm
     
     .bss
+    .global bypass_mode_enable
+bypass_mode_enable: .long 0
 
     .global sense_count
 sense_count: .long 0
@@ -70,7 +71,12 @@ entry:
     psr
     jump sense_sht3x
 
-    set_bypass_mode    
+    move r2,bypass_mode_enable
+    ld r0,r2,0
+    jumpr _sense_count,1,lt
+    
+    set_bypass_mode
+_sense_count:
 
     move r2,sense_count
     ld r0,r2,0

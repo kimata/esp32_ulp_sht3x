@@ -34,22 +34,25 @@
 // Configuration
 #define FLUENTD_IP      "192.168.2.20"  // IP address of Fluentd
 #define FLUENTD_PORT    8888            // Port of FLuentd
-#define FLUENTD_TAG     "/test"         // Fluentd tag
+#define FLUENTD_TAG     "/sensor"       // Fluentd tag
 
-#define WIFI_HOSTNAME   "sht3x-sensor"  // module's hostname
-#define SENSE_INTERVAL  3              // sensing interval
-#define SENSE_COUNT     3              // buffering count
+#define WIFI_HOSTNAME   "ESP32-outdoor" // module's hostname
+#define SENSE_INTERVAL  30              // sensing interval
+#define SENSE_COUNT     10              // buffering count
 
 /* #define WIFI_SSID "XXXXXXXX"            // WiFi SSID */
 /* #define WIFI_PASS "XXXXXXXX"            // WiFi Password */
 
 #define ADC_VREF        1128            // ADC calibration data
+
 ////////////////////////////////////////////////////////////
 const gpio_num_t gpio_scl    = GPIO_NUM_26;
 const gpio_num_t gpio_sda    = GPIO_NUM_25;
 const gpio_num_t gpio_bypass = GPIO_NUM_14;
 
-#define BATTERY_ADC_CH  ADC1_CHANNEL_4  //GPIO 32
+#define BATTERY_ADC_CH  ADC1_CHANNEL_4  // GPIO 32
+
+#define BATTERY_THRESHOLD 2500          // battery threshold
 ////////////////////////////////////////////////////////////
 
 #define WIFI_CONNECT_TIMEOUT 10
@@ -155,8 +158,7 @@ static void init_ulp_program()
     ESP_ERROR_CHECK(rtc_gpio_pulldown_en(gpio_bypass));
     ESP_ERROR_CHECK(rtc_gpio_pullup_dis(gpio_bypass));
     ESP_ERROR_CHECK(rtc_gpio_set_direction(gpio_bypass, RTC_GPIO_MODE_OUTPUT_ONLY));
-    /* ESP_ERROR_CHECK(rtc_gpio_hold_en(gpio_bypass)); */
-
+    ESP_ERROR_CHECK(rtc_gpio_hold_en(gpio_bypass));
 
     ESP_ERROR_CHECK(
         ulp_load_binary(
@@ -328,11 +330,18 @@ void app_main()
 
     set_sleep_period();
 
-    ESP_LOGI(TAG, "Go to sleep");
-
+    // ULP program parameter
     ulp_sense_count = SENSE_COUNT;
+    if (battery_volt > BATTERY_THRESHOLD) {
+        ESP_LOGI(TAG, "Set TPS61291 bypass mode");
+        ulp_bypass_mode_enable = 1;
+    } else {
+        ulp_bypass_mode_enable = 0;
+    }
+
     ESP_ERROR_CHECK(esp_sleep_enable_ulp_wakeup());
     ESP_ERROR_CHECK(ulp_run((&ulp_entry - RTC_SLOW_MEM) / sizeof(uint32_t)));
 
+    ESP_LOGI(TAG, "Go to sleep");
     esp_deep_sleep_start();
 }
