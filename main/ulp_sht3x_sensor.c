@@ -15,7 +15,8 @@
 #include "driver/rtc_io.h"
 #include "lwip/sockets.h"
 
-#define LOG_LOCAL_LEVEL ESP_LOG_INFO
+/* #define LOG_LOCAL_LEVEL ESP_LOG_INFO */
+#define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
 #include "esp_log.h"
 #include "esp_wifi.h"
 #include "esp_event_loop.h"
@@ -34,11 +35,11 @@
 // Configuration
 #define FLUENTD_IP      "192.168.2.20"  // IP address of Fluentd
 #define FLUENTD_PORT    8888            // Port of FLuentd
-#define FLUENTD_TAG     "/sensor"       // Fluentd tag
+#define FLUENTD_TAG     "/test"       // Fluentd tag
 
 #define WIFI_HOSTNAME   "ESP32-outdoor" // module's hostname
-#define SENSE_INTERVAL  30              // sensing interval
-#define SENSE_COUNT     10              // buffering count
+#define SENSE_INTERVAL  3              // sensing interval
+#define SENSE_COUNT     3              // buffering count
 
 /* #define WIFI_SSID "XXXXXXXX"            // WiFi SSID */
 /* #define WIFI_PASS "XXXXXXXX"            // WiFi Password */
@@ -115,7 +116,6 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
         wifi_status = wifi_connected;
         break;
     case SYSTEM_EVENT_STA_DISCONNECTED:
-        ESP_ERROR_CHECK(esp_wifi_connect());
         wifi_status = wifi_disconnected;
         break;
     default:
@@ -313,6 +313,8 @@ static void process_sense_data(uint32_t battery_volt)
 
     close(sock);
     cJSON_Delete(json);
+
+    ESP_ERROR_CHECK(esp_wifi_disconnect());
 }
 
 void set_sleep_period()
