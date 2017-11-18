@@ -63,7 +63,13 @@ entry:
     READ_RTC_REG(RTC_CNTL_DIAG0_REG, 19, 1)
     and r0, r0, 1
     jump exit, eq
-   
+
+    move r2,bypass_mode_enable
+    ld r0,r2,0
+    jumpr _sleep,1,lt
+    set_bypass_mode
+    
+_sleep:
     sleep 0
 
     set_boost_mode

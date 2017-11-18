@@ -226,7 +226,8 @@ static int connect_server()
     return sock;
 }
 
-static cJSON *sense_json(uint32_t battery_volt)
+static cJSON *sense_json(uint32_t battery_volt, wifi_ap_record_t *ap_record,
+                         uint32_t wifi_con_msec)
 {
     sense_data_t *sense_data = (sense_data_t *)&ulp_sense_data;
 
@@ -245,6 +246,9 @@ static cJSON *sense_json(uint32_t battery_volt)
 
         if (i == 0) {
             cJSON_AddNumberToObject(item, "battery", battery_volt);
+            cJSON_AddNumberToObject(item, "wifi_ch", ap_record->primary);
+            cJSON_AddNumberToObject(item, "wifi_rssi", ap_record->rssi);
+            cJSON_AddNumberToObject(item, "wifi_con_msec", wifi_con_msec);
         }
 
         cJSON_AddItemToArray(root, item);
@@ -267,24 +271,28 @@ uint32_t get_battery_voltage(void)
 
 static void process_sense_data(uint32_t battery_volt)
 {
+    wifi_ap_record_t ap_record;
+    uint32_t connect_msec;
     char buffer[sizeof(EXPECTED_RESPONSE)];
 
-    connect_wifi();
-
     uint32_t time_start = xTaskGetTickCount();
+    connect_wifi();
     while (wifi_status != wifi_connected) {
         if ((xTaskGetTickCount() - time_start)> (WIFI_CONNECT_TIMEOUT * 1000 / portTICK_PERIOD_MS)) {
             ESP_LOGE(TAG, "WIFI CONNECT TIMECOUT");
             return;
         }
+        vTaskDelay(200 / portTICK_RATE_MS); // wait 200ms
     }
+    connect_msec = (xTaskGetTickCount() - time_start) * portTICK_PERIOD_MS;
+    ESP_ERROR_CHECK(esp_wifi_sta_get_ap_info(&ap_record));
 
     int sock = connect_server();
     if (sock == -1) {
         return;
     }
 
-    cJSON *json = sense_json(battery_volt);
+    cJSON *json = sense_json(battery_volt, &ap_record, connect_msec);
     char *json_str = cJSON_PrintUnformatted(json);
 
     do {
@@ -318,7 +326,7 @@ void app_main()
 {
     uint32_t battery_volt;
 
-    esp_log_level_set("wifi", ESP_LOG_ERROR);
+    /* esp_log_level_set("wifi", ESP_LOG_ERROR); */
 
     battery_volt = get_battery_voltage();
 
@@ -333,9 +341,10 @@ void app_main()
     // ULP program parameter
     ulp_sense_count = SENSE_COUNT;
     if (battery_volt > BATTERY_THRESHOLD) {
-        ESP_LOGI(TAG, "Set TPS61291 bypass mode");
+        ESP_LOGI(TAG, "Enable TPS61291 bypass mode");
         ulp_bypass_mode_enable = 1;
     } else {
+        ESP_LOGI(TAG, "Disable TPS61291 bypass mode");
         ulp_bypass_mode_enable = 0;
     }
 
