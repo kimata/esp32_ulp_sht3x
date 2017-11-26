@@ -15,8 +15,6 @@
 #include "driver/rtc_io.h"
 #include "lwip/sockets.h"
 
-/* #define LOG_LOCAL_LEVEL ESP_LOG_INFO */
-#define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
 #include "esp_log.h"
 #include "esp_wifi.h"
 #include "esp_event_loop.h"
@@ -38,11 +36,11 @@
 #define FLUENTD_TAG     "/test"       // Fluentd tag
 
 #define WIFI_HOSTNAME   "ESP32-outdoor" // module's hostname
-#define SENSE_INTERVAL  3              // sensing interval
-#define SENSE_COUNT     3              // buffering count
+#define SENSE_INTERVAL  30              // sensing interval
+#define SENSE_COUNT     10              // buffering count
 
-/* #define WIFI_SSID "XXXXXXXX"            // WiFi SSID */
-/* #define WIFI_PASS "XXXXXXXX"            // WiFi Password */
+#define WIFI_SSID "XXXXXXXX"            // WiFi SSID
+#define WIFI_PASS "XXXXXXXX"            // WiFi Password
 
 #define ADC_VREF        1128            // ADC calibration data
 
@@ -184,7 +182,9 @@ static void connect_wifi()
     ESP_ERROR_CHECK(esp_event_loop_init(event_handler, NULL));
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
 
 #ifdef WIFI_SSID
     wifi_config_t wifi_config = {
@@ -201,8 +201,9 @@ static void connect_wifi()
         ESP_LOGI(TAG, "SAVE WIFI CONFIG");
         ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
     }
+    ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
 #endif
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+
     ESP_ERROR_CHECK(esp_wifi_start());
 }
 
