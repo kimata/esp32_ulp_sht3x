@@ -15,6 +15,7 @@
 #include "driver/rtc_io.h"
 #include "lwip/sockets.h"
 
+#define LOG_LOCAL_LEVEL ESP_LOG_INFO
 #include "esp_log.h"
 #include "esp_wifi.h"
 #include "esp_event_loop.h"
@@ -22,6 +23,7 @@
 #include "esp_adc_cal.h"
 #include "esp32/ulp.h"
 
+#include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
 
@@ -33,11 +35,11 @@
 // Configuration
 #define FLUENTD_IP      "192.168.2.20"  // IP address of Fluentd
 #define FLUENTD_PORT    8888            // Port of FLuentd
-#define FLUENTD_TAG     "/test"       // Fluentd tag
+#define FLUENTD_TAG     "/sensor"       // Fluentd tag
 
-#define WIFI_HOSTNAME   "ESP32-outdoor" // module's hostname
+#define WIFI_HOSTNAME   "ESP32-outdoor2"  // module's hostname
 #define SENSE_INTERVAL  30              // sensing interval
-#define SENSE_COUNT     10              // buffering count
+#define SENSE_COUNT     20              // buffering count
 
 #define WIFI_SSID "XXXXXXXX"            // WiFi SSID
 #define WIFI_PASS "XXXXXXXX"            // WiFi Password
@@ -49,18 +51,26 @@ const gpio_num_t gpio_scl    = GPIO_NUM_26;
 const gpio_num_t gpio_sda    = GPIO_NUM_25;
 const gpio_num_t gpio_bypass = GPIO_NUM_14;
 
-#define BATTERY_ADC_CH  ADC1_CHANNEL_4  // GPIO 32
+SemaphoreHandle_t wifi_conn_done = NULL;
 
-#define BATTERY_THRESHOLD 2500          // battery threshold
+#define BATTERY_ADC_CH  ADC1_CHANNEL_4  // GPIO 32
+#define BATTERY_ADC_SAMPLE  33
+#define BATTERY_ADC_DIV  1
+/* #define BATTERY_ADC_DIV  2.032 */
+
+/* #define BATTERY_THRESHOLD 2400          // battery threshold (operating voltage of SHT3x) */
+#define BATTERY_THRESHOLD 2800          // battery threshold (operating voltage of SHT3x)
 ////////////////////////////////////////////////////////////
 
 #define WIFI_CONNECT_TIMEOUT 10
 #define CLOCK_MEASURE   1024
 
-typedef enum {
-    wifi_connected,
-    wifi_disconnected,
-} wifi_status_t;
+typedef struct sense_data {
+    uint32_t temp;
+    uint32_t temp_crc;
+    uint32_t humi;
+    uint32_t humi_crc;
+} sense_data_t;
 
 extern const uint8_t ulp_main_bin_start[] asm("_binary_ulp_main_bin_start");
 extern const uint8_t ulp_main_bin_end[]   asm("_binary_ulp_main_bin_end");
@@ -73,9 +83,8 @@ extern const uint8_t ulp_main_bin_end[]   asm("_binary_ulp_main_bin_end");
     "\r\n" \
     "json=%s"
 
-static volatile wifi_status_t wifi_status = wifi_disconnected;
-
-
+//////////////////////////////////////////////////////////////////////
+// Sensor Function
 uint8_t crc8(const uint8_t *data, uint32_t len) {
     static const uint8_t POLY = 0x31;
     uint8_t crc = 0xFF;
@@ -91,35 +100,6 @@ uint8_t crc8(const uint8_t *data, uint32_t len) {
         }
     }
     return crc;
-}
-
-typedef struct sense_data {
-    uint32_t temp;
-    uint32_t temp_crc;
-    uint32_t humi;
-    uint32_t humi_crc;
-} sense_data_t;
-
-static esp_err_t event_handler(void *ctx, system_event_t *event)
-{
-    switch(event->event_id) {
-    case SYSTEM_EVENT_STA_START:
-        ESP_LOGI(TAG, "SYSTEM_EVENT_STA_START");
-        ESP_ERROR_CHECK(tcpip_adapter_set_hostname(TCPIP_ADAPTER_IF_STA, WIFI_HOSTNAME));
-        ESP_ERROR_CHECK(esp_wifi_connect());
-
-        break;
-    case SYSTEM_EVENT_STA_GOT_IP:
-        ESP_LOGI(TAG, "SYSTEM_EVENT_STA_GOT_IP");
-        wifi_status = wifi_connected;
-        break;
-    case SYSTEM_EVENT_STA_DISCONNECTED:
-        wifi_status = wifi_disconnected;
-        break;
-    default:
-        break;
-    }
-    return ESP_OK;
 }
 
 static bool sense_value_check_crc(uint32_t data, uint8_t crc) {
@@ -144,67 +124,38 @@ static float sense_calc_humi(sense_data_t *sense_data) {
     return (100 * (sense_data->humi & 0xFFFF)) / (float)((1 << 16) - 1);
 }
 
-static void init_ulp_program()
+//////////////////////////////////////////////////////////////////////
+// Fluentd Function
+int cmp_volt(const uint32_t *a, const uint32_t *b)
 {
-    ESP_ERROR_CHECK(rtc_gpio_init(gpio_scl));
-    ESP_ERROR_CHECK(rtc_gpio_set_direction(gpio_scl, RTC_GPIO_MODE_INPUT_ONLY));
-    ESP_ERROR_CHECK(rtc_gpio_init(gpio_sda));
-    ESP_ERROR_CHECK(rtc_gpio_set_direction(gpio_sda, RTC_GPIO_MODE_INPUT_ONLY));
-
-    ESP_ERROR_CHECK(rtc_gpio_init(gpio_bypass));
-    ESP_ERROR_CHECK(rtc_gpio_set_level(gpio_bypass, 1));
-    ESP_ERROR_CHECK(rtc_gpio_pulldown_en(gpio_bypass));
-    ESP_ERROR_CHECK(rtc_gpio_pullup_dis(gpio_bypass));
-    ESP_ERROR_CHECK(rtc_gpio_set_direction(gpio_bypass, RTC_GPIO_MODE_OUTPUT_ONLY));
-    ESP_ERROR_CHECK(rtc_gpio_hold_en(gpio_bypass));
-
-    ESP_ERROR_CHECK(
-        ulp_load_binary(
-            0, ulp_main_bin_start,
-            (ulp_main_bin_end - ulp_main_bin_start) / sizeof(uint32_t)
-        )
-    );
+    if (*a < *b) {
+        return -1;
+    } else if (*a == *b) {
+        return 0;
+    } else {
+        return 1;
+    }
 }
 
-static void connect_wifi()
+uint32_t get_battery_voltage(void)
 {
-    esp_err_t ret;
+    uint32_t ad_volt_list[BATTERY_ADC_SAMPLE];
+    esp_adc_cal_characteristics_t characteristics;
 
-    ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
+    adc1_config_width(ADC_WIDTH_BIT_12);
+    adc1_config_channel_atten(BATTERY_ADC_CH, ADC_ATTEN_11db);
+    esp_adc_cal_get_characteristics(ADC_VREF, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_12,
+                                    &characteristics);
+
+    for (uint32_t i = 0; i < BATTERY_ADC_SAMPLE; i++) {
+        ad_volt_list[i] = adc1_to_voltage(BATTERY_ADC_CH, &characteristics);
     }
-    ESP_ERROR_CHECK(ret);
 
-    tcpip_adapter_init();
+    qsort(ad_volt_list, BATTERY_ADC_SAMPLE, sizeof(uint32_t),
+          (int (*)(const void *, const void *))cmp_volt);
 
-    ESP_ERROR_CHECK(esp_event_loop_init(event_handler, NULL));
-
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-
-#ifdef WIFI_SSID
-    wifi_config_t wifi_config = {
-        .sta = {
-            .ssid = WIFI_SSID,
-            .password = WIFI_PASS,
-        },
-    };
-    wifi_config_t wifi_config_cur;
-    ESP_ERROR_CHECK(esp_wifi_get_config(WIFI_IF_STA, &wifi_config_cur));
-
-    if (strcmp((const char *)wifi_config_cur.sta.ssid, (const char *)wifi_config.sta.ssid) ||
-        strcmp((const char *)wifi_config_cur.sta.password, (const char *)wifi_config.sta.password)) {
-        ESP_LOGI(TAG, "SAVE WIFI CONFIG");
-        ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
-    }
-    ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
-#endif
-
-    ESP_ERROR_CHECK(esp_wifi_start());
+    // mean value
+    return ad_volt_list[BATTERY_ADC_SAMPLE >> 1] * BATTERY_ADC_DIV;
 }
 
 static int connect_server()
@@ -258,34 +209,11 @@ static cJSON *sense_json(uint32_t battery_volt, wifi_ap_record_t *ap_record,
     return root;
 }
 
-uint32_t get_battery_voltage(void)
-{
-    esp_adc_cal_characteristics_t characteristics;
-
-    adc1_config_width(ADC_WIDTH_BIT_12);
-    adc1_config_channel_atten(BATTERY_ADC_CH, ADC_ATTEN_11db);
-    esp_adc_cal_get_characteristics(ADC_VREF, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_12,
-                                    &characteristics);
-
-    return adc1_to_voltage(BATTERY_ADC_CH, &characteristics);
-}
-
-static void process_sense_data(uint32_t battery_volt)
+static void process_sense_data(uint32_t connect_msec, uint32_t battery_volt)
 {
     wifi_ap_record_t ap_record;
-    uint32_t connect_msec;
     char buffer[sizeof(EXPECTED_RESPONSE)];
 
-    uint32_t time_start = xTaskGetTickCount();
-    connect_wifi();
-    while (wifi_status != wifi_connected) {
-        if ((xTaskGetTickCount() - time_start)> (WIFI_CONNECT_TIMEOUT * 1000 / portTICK_PERIOD_MS)) {
-            ESP_LOGE(TAG, "WIFI CONNECT TIMECOUT");
-            return;
-        }
-        vTaskDelay(200 / portTICK_RATE_MS); // wait 200ms
-    }
-    connect_msec = (xTaskGetTickCount() - time_start) * portTICK_PERIOD_MS;
     ESP_ERROR_CHECK(esp_wifi_sta_get_ap_info(&ap_record));
 
     int sock = connect_server();
@@ -314,8 +242,110 @@ static void process_sense_data(uint32_t battery_volt)
 
     close(sock);
     cJSON_Delete(json);
+}
 
+//////////////////////////////////////////////////////////////////////
+// Wifi Function
+static esp_err_t event_handler(void *ctx, system_event_t *event)
+{
+    switch(event->event_id) {
+    case SYSTEM_EVENT_STA_START:
+        ESP_LOGI(TAG, "SYSTEM_EVENT_STA_START");
+        ESP_ERROR_CHECK(tcpip_adapter_set_hostname(TCPIP_ADAPTER_IF_STA, WIFI_HOSTNAME));
+        ESP_ERROR_CHECK(esp_wifi_connect());
+        break;
+    case SYSTEM_EVENT_STA_GOT_IP:
+        ESP_LOGI(TAG, "SYSTEM_EVENT_STA_GOT_IP");
+        xSemaphoreGive(wifi_conn_done);
+        break;
+    case SYSTEM_EVENT_STA_DISCONNECTED:
+        ESP_LOGI(TAG, "SYSTEM_EVENT_STA_DISCONNECTED");
+        xSemaphoreGive(wifi_conn_done);
+        break;
+    default:
+        break;
+    }
+    return ESP_OK;
+}
+
+static void init_wifi()
+{
+    esp_err_t ret;
+
+    ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
+
+    tcpip_adapter_init();
+
+    ESP_ERROR_CHECK(esp_event_loop_init(event_handler, NULL));
+
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+
+#ifdef WIFI_SSID
+    wifi_config_t wifi_config = {
+        .sta = {
+            .ssid = WIFI_SSID,
+            .password = WIFI_PASS,
+        },
+    };
+    wifi_config_t wifi_config_cur;
+    ESP_ERROR_CHECK(esp_wifi_get_config(WIFI_IF_STA, &wifi_config_cur));
+
+    if (strcmp((const char *)wifi_config_cur.sta.ssid, (const char *)wifi_config.sta.ssid) ||
+        strcmp((const char *)wifi_config_cur.sta.password, (const char *)wifi_config.sta.password)) {
+        ESP_LOGI(TAG, "SAVE WIFI CONFIG");
+        ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
+    }
+#endif
+}
+
+static esp_err_t wifi_connect()
+{
+    xSemaphoreTake(wifi_conn_done, portMAX_DELAY);
+    ESP_ERROR_CHECK(esp_wifi_start());
+    if (xSemaphoreTake(wifi_conn_done, 10000 / portTICK_RATE_MS) == pdTRUE) {
+        return ESP_OK;
+    } else {
+        ESP_LOGE(TAG, "WIFI CONNECT TIMECOUT")
+        return ESP_FAIL;
+    }
+}
+
+static void wifi_disconnect()
+{
     ESP_ERROR_CHECK(esp_wifi_disconnect());
+    ESP_ERROR_CHECK(esp_wifi_stop());
+}
+
+//////////////////////////////////////////////////////////////////////
+// ULP Function
+static void init_ulp_program()
+{
+    ESP_ERROR_CHECK(rtc_gpio_init(gpio_scl));
+    ESP_ERROR_CHECK(rtc_gpio_set_direction(gpio_scl, RTC_GPIO_MODE_INPUT_ONLY));
+    ESP_ERROR_CHECK(rtc_gpio_init(gpio_sda));
+    ESP_ERROR_CHECK(rtc_gpio_set_direction(gpio_sda, RTC_GPIO_MODE_INPUT_ONLY));
+
+    ESP_ERROR_CHECK(rtc_gpio_init(gpio_bypass));
+    ESP_ERROR_CHECK(rtc_gpio_set_level(gpio_bypass, 1));
+    ESP_ERROR_CHECK(rtc_gpio_pulldown_en(gpio_bypass));
+    ESP_ERROR_CHECK(rtc_gpio_pullup_dis(gpio_bypass));
+    ESP_ERROR_CHECK(rtc_gpio_set_direction(gpio_bypass, RTC_GPIO_MODE_OUTPUT_ONLY));
+    ESP_ERROR_CHECK(rtc_gpio_hold_en(gpio_bypass));
+
+    ESP_ERROR_CHECK(
+        ulp_load_binary(
+            0, ulp_main_bin_start,
+            (ulp_main_bin_end - ulp_main_bin_start) / sizeof(uint32_t)
+        )
+    );
 }
 
 void set_sleep_period()
@@ -325,18 +355,29 @@ void set_sleep_period()
                                          rtc_clk_cal(RTC_CAL_RTC_MUX , CLOCK_MEASURE)));
 }
 
+//////////////////////////////////////////////////////////////////////
 void app_main()
 {
+    uint32_t time_start;
     uint32_t battery_volt;
+    uint32_t connect_msec;
 
-    /* esp_log_level_set("wifi", ESP_LOG_ERROR); */
+    vSemaphoreCreateBinary(wifi_conn_done);
 
     battery_volt = get_battery_voltage();
 
-    if (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_ULP) {
-        init_ulp_program();
+    esp_log_level_set("wifi", ESP_LOG_ERROR);
+
+    if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_ULP) {
+        time_start = xTaskGetTickCount();
+        init_wifi();
+        if (wifi_connect() == ESP_OK) {
+            connect_msec = (xTaskGetTickCount() - time_start) * portTICK_PERIOD_MS;
+            process_sense_data(connect_msec, battery_volt);
+        }
+        wifi_disconnect();
     } else {
-        process_sense_data(battery_volt);
+        init_ulp_program();
     }
 
     set_sleep_period();

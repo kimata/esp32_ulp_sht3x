@@ -14,6 +14,7 @@
 
 #include "util_macro.S"
 
+// .set SHT31_DEV_ADDR,0x8A // 8bit representation (0x45 in 7bit)
 .set SHT31_DEV_ADDR,0x88 // 8bit representation (0x44 in 7bit)
 .set SHT31_CMD_MSB,0x24
 .set SHT31_CMD_LSB,0x00

@@ -1,4 +1,4 @@
-# ULP SHT3x sensro application
+# ULP SHT3x sensor application
 
 This software captures temerature and humidity and send those value to
 Fluentd.
