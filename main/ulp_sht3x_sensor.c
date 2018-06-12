@@ -443,8 +443,6 @@ void app_main()
         ulp_sense_full = SENSE_COUNT;
     }
 
-    vTaskDelay(100);
-
     set_sleep_period();
 
     // ULP program parameter
@@ -460,5 +458,6 @@ void app_main()
     ESP_ERROR_CHECK(ulp_run((&ulp_entry - RTC_SLOW_MEM) / sizeof(uint32_t)));
 
     ESP_LOGI(TAG, "Go to sleep");
+    vTaskDelay(10 / portTICK_RATE_MS); // wait 10ms for flush UART
     esp_deep_sleep_start();
 }
