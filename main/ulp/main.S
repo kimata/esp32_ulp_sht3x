@@ -17,7 +17,7 @@
 #include "util_macro.S"
 
 .set SENSE_SIZE,4
-.set SENSE_BUF_ENTRY,40
+.set SENSE_BUF_ENTRY,50
 .set SENSE_BUF_SIZE,(4*SENSE_BUF_ENTRY*SENSE_SIZE)
 
 .set BYPASS_MODE_REG_OFFSET,16 // GPIO_NUM_14
@@ -36,6 +36,9 @@
     .global bypass_mode_enable
 bypass_mode_enable: .long 0
 
+    .global sense_full
+sense_full: .long 0
+    
     .global sense_count
 sense_count: .long 0
 
@@ -82,16 +85,16 @@ _sleep:
     jumpr _sense_count,1,lt
     
     set_bypass_mode
+    
 _sense_count:
-
     move r2,sense_count
     ld r0,r2,0
     move r1,sense_data
 
 _sense_data_pos:
-    sub r0,r0,1
     jumpr _copy_sense_data,1,lt
     add r1,r1,SENSE_SIZE
+    sub r0,r0,1
     jump _sense_data_pos
 
 _copy_sense_data:
@@ -105,21 +108,23 @@ _copy_sense_data:
     ld r0,r2,12
     st r0,r1,12
     
-    // decrement sense_count
+    // increment sense_count
     move r2,sense_count
     ld r0,r2,0
-    sub r0,r0,1
-    jumpr wake_cpu,1,lt
+    add r0,r0,1
     st r0,r2,0
+    
+    move r2,sense_full
+    ld r1,r2,0
+
+    // compare sense_count and sense_full
+    sub r0, r1, r0
+    jumpr wake_cpu,1,lt
     
     halt
 
 wake_cpu:
     set_boost_mode
-    
-    // reset sense_count
-    move r0,0
-    st r0,r2,0
     
     wake
     // stop wake up timer
