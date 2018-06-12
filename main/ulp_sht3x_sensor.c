@@ -50,9 +50,6 @@
 #define SENSE_COUNT     20              // buffering count
 #define SENSE_COUNT_MAX 30              // buffering count
 
-/* #define WIFI_SSID "XXXXXXXX"            // WiFi SSID */
-/* #define WIFI_PASS "XXXXXXXX"            // WiFi Password */
-
 #define ADC_VREF        1128            // ADC calibration data
 
 ////////////////////////////////////////////////////////////
@@ -419,7 +416,7 @@ void app_main()
         bool status = false;
         ulp_sense_count = ulp_sense_count & 0xFFFF; // mask
 
-        ESP_LOGI(TAG, "Send to fluentd count = %d", ulp_sense_count);
+        ESP_LOGI(TAG, "Send to fluentd");
         time_start = xTaskGetTickCount();
 
         if (wifi_init() && wifi_connect()) {
@@ -429,12 +426,11 @@ void app_main()
         wifi_stop();
 
         if (status) {
-            ESP_LOGI(TAG, "OK");
             ulp_sense_count = 0;
             ulp_sense_full = SENSE_COUNT;
         } else if (ulp_sense_count >= SENSE_COUNT_MAX) {
+            ESP_LOGI(TAG, "GIVE UP!");
             // count has reached max
-            ESP_LOGI(TAG, "NG");
             ulp_sense_count = 0;
             ulp_sense_full = SENSE_COUNT;
         } else {
