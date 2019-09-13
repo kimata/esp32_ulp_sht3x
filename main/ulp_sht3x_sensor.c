@@ -21,7 +21,7 @@
 #include "esp_log.h"
 
 #include "esp_adc_cal.h"
-#include "esp_event_loop.h"
+#include "esp_event.h"
 #include "esp_spi_flash.h"
 #include "esp_task_wdt.h"
 #include "esp_wifi.h"
@@ -284,26 +284,24 @@ static bool process_sense_data(uint32_t battery_volt, wifi_ap_record_t *ap_info,
 
 //////////////////////////////////////////////////////////////////////
 // Wifi Function
-static esp_err_t event_handler(void *ctx, system_event_t *event)
+static void event_handler(void* arg, esp_event_base_t event_base,
+                                int32_t event_id, void* event_data)
 {
-    switch(event->event_id) {
-    case SYSTEM_EVENT_STA_START:
-        ESP_LOGI(TAG, "SYSTEM_EVENT_STA_START");
-        ERROR_RETURN(tcpip_adapter_set_hostname(TCPIP_ADAPTER_IF_STA, WIFI_HOSTNAME), ESP_FAIL);
-        ERROR_RETURN(esp_wifi_connect(), ESP_FAIL);
-        break;
-    case SYSTEM_EVENT_STA_GOT_IP:
-        ESP_LOGI(TAG, "SYSTEM_EVENT_STA_GOT_IP");
-        xSemaphoreGive(wifi_conn_done);
-        break;
-    case SYSTEM_EVENT_STA_DISCONNECTED:
-        ESP_LOGI(TAG, "SYSTEM_EVENT_STA_DISCONNECTED");
-        xSemaphoreGive(wifi_conn_done);
-        break;
-    default:
-        break;
+    if (event_base == WIFI_EVENT) {
+        if (event_id == WIFI_EVENT_STA_START) {
+            ESP_LOGI(TAG, "SYSTEM_EVENT_STA_START");
+            ESP_ERROR_CHECK(tcpip_adapter_set_hostname(TCPIP_ADAPTER_IF_STA, WIFI_HOSTNAME));
+            ESP_ERROR_CHECK(esp_wifi_connect());
+        } else if (event_id == WIFI_EVENT_STA_DISCONNECTED) {
+            ESP_LOGI(TAG, "SYSTEM_EVENT_STA_DISCONNECTED");
+            xSemaphoreGive(wifi_conn_done);
+        }
+    } else if (event_base == IP_EVENT) {
+        if (event_id == IP_EVENT_STA_GOT_IP) {
+            ESP_LOGI(TAG, "SYSTEM_EVENT_STA_GOT_IP");
+            xSemaphoreGive(wifi_conn_done);
+        }
     }
-    return ESP_OK;
 }
 
 static bool wifi_init()
@@ -319,7 +317,8 @@ static bool wifi_init()
 
     tcpip_adapter_init();
 
-    ERROR_RETURN(esp_event_loop_init(event_handler, NULL), false);
+    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL));
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 
