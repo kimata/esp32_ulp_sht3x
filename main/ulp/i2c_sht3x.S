@@ -28,7 +28,7 @@ sht3x_sense_value: .long 0
 
 ////////////////////////////////////////////////////////////
     .text
-    
+
     .global sense_sht3x
     .global sht3x_read_value
 

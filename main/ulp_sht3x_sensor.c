@@ -25,6 +25,7 @@
 #include "esp_spi_flash.h"
 #include "esp_task_wdt.h"
 #include "esp_wifi.h"
+#include "esp_sleep.h"
 
 #include <stdlib.h>
 #include <stdbool.h>
@@ -48,7 +49,7 @@
 #define WIFI_HOSTNAME   "ESP32-outdoor2"  // module's hostname
 #define SENSE_INTERVAL  30              // sensing interval
 #define SENSE_COUNT     20              // buffering count
-#define SENSE_COUNT_MAX 30              // buffering count
+#define SENSE_COUNT_MAX 60              // max buffering count
 
 #define ADC_VREF        1128            // ADC calibration data
 
@@ -68,7 +69,7 @@ SemaphoreHandle_t wifi_conn_done = NULL;
 #define BATTERY_THRESHOLD 2800          // battery threshold (operating voltage of SHT3x)
 ////////////////////////////////////////////////////////////
 
-#define WIFI_CONNECT_TIMEOUT 10
+#define WIFI_CONNECT_TIMEOUT 3
 #define CLOCK_MEASURE   1024
 
 typedef struct sense_data {
@@ -210,7 +211,7 @@ static int connect_server()
     return sock;
 }
 
-static cJSON *sense_json(uint32_t battery_volt, wifi_ap_record_t *ap_record,
+static cJSON *sense_json(uint32_t battery_volt, wifi_ap_record_t *ap_info,
                          uint32_t wifi_con_msec)
 {
     sense_data_t *sense_data = (sense_data_t *)&ulp_sense_data;
@@ -232,8 +233,8 @@ static cJSON *sense_json(uint32_t battery_volt, wifi_ap_record_t *ap_record,
 
         if (index == 0) {
             cJSON_AddNumberToObject(item, "battery", battery_volt);
-            cJSON_AddNumberToObject(item, "wifi_ch", ap_record->primary);
-            cJSON_AddNumberToObject(item, "wifi_rssi", ap_record->rssi);
+            cJSON_AddNumberToObject(item, "wifi_ch", ap_info->primary);
+            cJSON_AddNumberToObject(item, "wifi_rssi", ap_info->rssi);
             cJSON_AddNumberToObject(item, "wifi_con_msec", wifi_con_msec);
             cJSON_AddNumberToObject(item, "retry", ulp_sense_count - SENSE_COUNT);
         }
@@ -244,20 +245,17 @@ static cJSON *sense_json(uint32_t battery_volt, wifi_ap_record_t *ap_record,
     return root;
 }
 
-static bool process_sense_data(uint32_t connect_msec, uint32_t battery_volt)
+static bool process_sense_data(uint32_t battery_volt, wifi_ap_record_t *ap_info, uint32_t connect_msec)
 {
-    wifi_ap_record_t ap_record;
     char buffer[sizeof(EXPECTED_RESPONSE)];
     bool result = false;
-
-    ERROR_RETURN(esp_wifi_sta_get_ap_info(&ap_record), false);
 
     int sock = connect_server();
     if (sock == -1) {
         return false;
     }
 
-    cJSON *json = sense_json(battery_volt, &ap_record, connect_msec);
+    cJSON *json = sense_json(battery_volt, ap_info, connect_msec);
     char *json_str = cJSON_PrintUnformatted(json);
 
     do {
@@ -348,11 +346,12 @@ static bool wifi_init()
     return true;
 }
 
-static bool wifi_connect()
+static bool wifi_connect(wifi_ap_record_t *ap_info)
 {
     xSemaphoreTake(wifi_conn_done, portMAX_DELAY);
     ERROR_RETURN(esp_wifi_start(), false);
-    if (xSemaphoreTake(wifi_conn_done, 10000 / portTICK_RATE_MS) == pdTRUE) {
+    if (xSemaphoreTake(wifi_conn_done, WIFI_CONNECT_TIMEOUT * 1000 / portTICK_RATE_MS) == pdTRUE) {
+        ERROR_RETURN(esp_wifi_sta_get_ap_info(ap_info), false);
         return true;
     } else {
         ESP_LOGE(TAG, "WIFI CONNECT TIMECOUT");
@@ -362,8 +361,8 @@ static bool wifi_connect()
 
 static bool wifi_stop()
 {
-    ERROR_RETURN(esp_wifi_disconnect(), false);
-    ERROR_RETURN(esp_wifi_stop(), false);
+    esp_wifi_disconnect();
+    esp_wifi_stop();
 
     return true;
 }
@@ -402,6 +401,7 @@ void set_sleep_period()
 //////////////////////////////////////////////////////////////////////
 void app_main()
 {
+    wifi_ap_record_t ap_info;
     uint32_t time_start;
     uint32_t battery_volt;
     uint32_t connect_msec;
@@ -419,9 +419,9 @@ void app_main()
         ESP_LOGI(TAG, "Send to fluentd");
         time_start = xTaskGetTickCount();
 
-        if (wifi_init() && wifi_connect()) {
+        if (wifi_init() && wifi_connect(&ap_info)) {
             connect_msec = (xTaskGetTickCount() - time_start) * portTICK_PERIOD_MS;
-            status = process_sense_data(connect_msec, battery_volt);
+            status = process_sense_data(battery_volt, &ap_info, connect_msec);
         }
         wifi_stop();
 
@@ -458,6 +458,7 @@ void app_main()
     ESP_ERROR_CHECK(ulp_run((&ulp_entry - RTC_SLOW_MEM) / sizeof(uint32_t)));
 
     ESP_LOGI(TAG, "Go to sleep");
-    vTaskDelay(10 / portTICK_RATE_MS); // wait 10ms for flush UART
+
+    vTaskDelay(20 / portTICK_RATE_MS); // wait 20ms for flush UART
     esp_deep_sleep_start();
 }

@@ -17,7 +17,7 @@
 #include "util_macro.S"
 
 .set SENSE_SIZE,4
-.set SENSE_BUF_ENTRY,50
+.set SENSE_BUF_ENTRY,60
 .set SENSE_BUF_SIZE,(4*SENSE_BUF_ENTRY*SENSE_SIZE)
 
 .set BYPASS_MODE_REG_OFFSET,16 // GPIO_NUM_14
@@ -31,8 +31,10 @@
 .macro set_boost_mode
     WRITE_RTC_REG(RTC_IO_TOUCH_PAD6_REG,RTC_IO_TOUCH_PAD6_HOLD_S,1,1)
 .endm
-    
+
     .bss
+    .balign 4
+
     .global bypass_mode_enable
 bypass_mode_enable: .long 0
 
@@ -42,14 +44,13 @@ sense_full: .long 0
     .global sense_count
 sense_count: .long 0
 
-    .balign 4
     .global sense_data
 sense_data: .long 0
     .skip SENSE_BUF_SIZE
 
     .global stack
 stack:
-    .skip 100
+    .skip 64
     .global stackEnd
 stackEnd:
     .long 0
