@@ -176,11 +176,20 @@ uint32_t get_battery_voltage(void)
 {
     uint32_t ad_volt_list[BATTERY_ADC_SAMPLE];
     esp_adc_cal_characteristics_t characteristics;
+    esp_adc_cal_value_t cal_type;
+    uint32_t voltage;
 
     adc1_config_width(ADC_WIDTH_BIT_12);
     adc1_config_channel_atten(BATTERY_ADC_CH, ADC_ATTEN_11db);
-    esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_12, ADC_VREF,
-                             &characteristics);
+    cal_type = esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_12, ADC_VREF,
+                                        &characteristics);
+    if (cal_type == ESP_ADC_CAL_VAL_EFUSE_VREF) {
+        ESP_LOGD(TAG, "ADC using eFuse Vref");
+    } else if (cal_type == ESP_ADC_CAL_VAL_EFUSE_TP) {
+        ESP_LOGD(TAG, "ADC using two point");
+    } else {
+        ESP_LOGD(TAG, "ADC using defaullt (%d)", ADC_VREF);
+    }
 
     for (uint32_t i = 0; i < BATTERY_ADC_SAMPLE; i++) {
         ESP_ERROR_CHECK(esp_adc_cal_get_voltage(BATTERY_ADC_CH,
@@ -191,7 +200,11 @@ uint32_t get_battery_voltage(void)
           (int (*)(const void *, const void *))cmp_volt);
 
     // mean value
-    return ad_volt_list[BATTERY_ADC_SAMPLE >> 1] * BATTERY_ADC_DIV;
+    voltage =  ad_volt_list[BATTERY_ADC_SAMPLE >> 1] * BATTERY_ADC_DIV;
+
+    ESP_LOGD(TAG, "BATTERY: %.2f V", voltage / 1000.0);
+
+    return voltage;
 }
 
 static int connect_server()
@@ -428,6 +441,14 @@ void app_main()
     uint32_t time_start;
     uint32_t battery_volt;
     uint32_t connect_msec;
+
+/* #define CALIB_ADC */
+#ifdef CALIB_ADC
+    ESP_LOGI(TAG, "START: ADC CALIBRATION");
+    ESP_LOGI(TAG, "check the voltage of GPIO25.");
+    ESP_ERROR_CHECK(adc2_vref_to_gpio(GPIO_NUM_25));
+    while (1);
+#endif
 
     vSemaphoreCreateBinary(wifi_conn_done);
 
