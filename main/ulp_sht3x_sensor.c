@@ -55,8 +55,8 @@
 #define ADC_VREF        1128            // ADC calibration data
 
 ////////////////////////////////////////////////////////////
-const gpio_num_t gpio_scl    = GPIO_NUM_26;
-const gpio_num_t gpio_sda    = GPIO_NUM_25;
+const gpio_num_t gpio_scl    = GPIO_NUM_25;
+const gpio_num_t gpio_sda    = GPIO_NUM_33;
 const gpio_num_t gpio_bypass = GPIO_NUM_14;
 
 SemaphoreHandle_t wifi_conn_done = NULL;
