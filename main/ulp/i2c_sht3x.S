@@ -44,8 +44,9 @@ sense_sht3x:
     psr
     jump i2c_write_reg8
     add r3,r3,3
+
     jumpr sht3x_sense_fail,1,ge
-    
+
     wait (8*8000) // 8ms (RTC_FAST_CLK = 8Mhz)
     wait (8*8000) // 8ms (RTC_FAST_CLK = 8Mhz)
     wait (8*8000) // 8ms (RTC_FAST_CLK = 8Mhz)

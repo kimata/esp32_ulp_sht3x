@@ -77,7 +77,7 @@ _sleep:
     sleep 0
 
     set_boost_mode
-    
+
     psr
     jump sense_sht3x
 
