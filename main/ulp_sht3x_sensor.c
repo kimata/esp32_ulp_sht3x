@@ -38,21 +38,21 @@
 
 #include "wifi_config.h"
 // wifi_config.h should define followings.
-// #define WIFI_SSID "XXXXXXXX"            // WiFi SSID
-// #define WIFI_PASS "XXXXXXXX"            // WiFi Password
+// #define WIFI_SSID "XXXXXXXX"             // WiFi SSID
+// #define WIFI_PASS "XXXXXXXX"             // WiFi Password
 
 ////////////////////////////////////////////////////////////
 // Configuration
-#define FLUENTD_IP      "192.168.2.20"  // IP address of Fluentd
-#define FLUENTD_PORT    8888            // Port of FLuentd
-#define FLUENTD_TAG     "/sensor"       // Fluentd tag
+#define FLUENTD_IP      "192.168.2.20"      // IP address of Fluentd
+#define FLUENTD_PORT    8888                // Port of FLuentd
+#define FLUENTD_TAG     "/sensor"           // Fluentd tag
 
-#define WIFI_HOSTNAME   "ESP32-outdoor2"  // module's hostname
-#define SENSE_INTERVAL  30              // sensing interval
-#define SENSE_COUNT     20              // buffering count
-#define SENSE_COUNT_MAX 60              // max buffering count
+#define WIFI_HOSTNAME   "ESP32-outdoor-1"   // module's hostname
+#define SENSE_INTERVAL  30                  // sensing interval
+#define SENSE_COUNT     20                  // buffering count
+#define SENSE_COUNT_MAX 60                  // max buffering count
 
-#define ADC_VREF        1128            // ADC calibration data
+#define ADC_VREF        1100                // ADC calibration data
 
 ////////////////////////////////////////////////////////////
 const gpio_num_t gpio_scl    = GPIO_NUM_25;
@@ -63,13 +63,11 @@ SemaphoreHandle_t wifi_conn_done = NULL;
 esp_event_handler_instance_t wifi_handler_any_id = NULL;
 esp_event_handler_instance_t wifi_handler_got_ip = NULL;
 
-#define BATTERY_ADC_CH  ADC1_CHANNEL_4  // GPIO 32
+#define BATTERY_ADC_CH  ADC1_CHANNEL_4      // GPIO 32
 #define BATTERY_ADC_SAMPLE  33
-#define BATTERY_ADC_DIV  1
-/* #define BATTERY_ADC_DIV  2.032 */
+#define BATTERY_ADC_DIV  2
 
-/* #define BATTERY_THRESHOLD 2400          // battery threshold (operating voltage of SHT3x) */
-#define BATTERY_THRESHOLD 2800          // battery threshold (operating voltage of SHT3x)
+#define BATTERY_THRESHOLD 2400              // battery threshold (operating voltage of SHT3x)
 ////////////////////////////////////////////////////////////
 
 #define WIFI_CONNECT_TIMEOUT 3
