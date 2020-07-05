@@ -50,7 +50,7 @@
 #define WIFI_HOSTNAME   "ESP32-outdoor-1"   // module's hostname
 #define SENSE_INTERVAL  30                  // sensing interval
 #define SENSE_COUNT     20                  // buffering count
-#define SENSE_COUNT_MAX 60                  // max buffering count
+#define SENSE_COUNT_MAX 120                 // max buffering count
 
 #define ADC_VREF        1100                // ADC calibration data
 
