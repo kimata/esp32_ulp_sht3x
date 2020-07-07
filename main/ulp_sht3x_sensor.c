@@ -463,6 +463,7 @@ void app_main()
 
         if (wifi_init() && wifi_connect(&ap_info)) {
             connect_msec = (xTaskGetTickCount() - time_start) * portTICK_PERIOD_MS;
+            ESP_LOGI(TAG, "WiFi connect time: %d msec", connect_msec);
             status = process_sense_data(battery_volt, &ap_info, connect_msec);
         }
         wifi_stop();
