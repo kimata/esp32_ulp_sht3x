@@ -54,7 +54,6 @@
 
 #define ADC_VREF        1100                // ADC calibration data
 
-////////////////////////////////////////////////////////////
 const gpio_num_t gpio_scl    = GPIO_NUM_25;
 const gpio_num_t gpio_sda    = GPIO_NUM_33;
 const gpio_num_t gpio_bypass = GPIO_NUM_14;
@@ -68,10 +67,12 @@ esp_event_handler_instance_t wifi_handler_got_ip = NULL;
 #define BATTERY_ADC_DIV  2
 
 #define BATTERY_THRESHOLD 2400              // battery threshold (operating voltage of SHT3x)
-////////////////////////////////////////////////////////////
 
 #define WIFI_CONNECT_TIMEOUT 3
 #define CLOCK_MEASURE   1024
+
+#define TAG "ulp_sht3x"
+////////////////////////////////////////////////////////////
 
 typedef struct sense_data {
     uint32_t temp;
@@ -83,7 +84,6 @@ typedef struct sense_data {
 extern const uint8_t ulp_main_bin_start[] asm("_binary_ulp_main_bin_start");
 extern const uint8_t ulp_main_bin_end[]   asm("_binary_ulp_main_bin_end");
 
-#define TAG "ulp_sht3x"
 #define EXPECTED_RESPONSE "HTTP/1.1 200 OK"
 #define REQUEST "POST http://" FLUENTD_IP FLUENTD_TAG " HTTP/1.0\r\n" \
     "Content-Type: application/x-www-form-urlencoded\r\n" \
