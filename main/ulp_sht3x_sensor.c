@@ -356,21 +356,15 @@ static bool wifi_init()
     }
 #endif
 
-    ERROR_RETURN(esp_event_handler_instance_register(WIFI_EVENT,
-                                                     ESP_EVENT_ANY_ID,
-                                                     &event_handler,
-                                                     NULL,
-                                                     &wifi_handler_any_id),
-                 false);
-    ERROR_RETURN(esp_event_handler_instance_register(IP_EVENT,
-                                                     IP_EVENT_STA_GOT_IP,
-                                                     &event_handler,
-                                                     NULL,
-                                                     &wifi_handler_got_ip),
+    ERROR_RETURN(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID,
+                                                     &event_handler, NULL, &wifi_handler_any_id),
                  false);
 
-    ERROR_RETURN(esp_netif_set_hostname(esp_netif, WIFI_HOSTNAME),
+    ERROR_RETURN(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP,
+                                                     &event_handler, NULL, &wifi_handler_got_ip),
                  false);
+
+    ERROR_RETURN(esp_netif_set_hostname(esp_netif, WIFI_HOSTNAME), false);
 
     return true;
 }
@@ -391,17 +385,15 @@ static bool wifi_connect(wifi_ap_record_t *ap_info)
 
 static bool wifi_stop()
 {
-    ERROR_RETURN(esp_event_handler_instance_unregister(IP_EVENT,
-                                                       IP_EVENT_STA_GOT_IP,
-                                                       wifi_handler_got_ip),
-                 false);
-    ERROR_RETURN(esp_event_handler_instance_unregister(WIFI_EVENT,
-                                                       ESP_EVENT_ANY_ID,
-                                                       wifi_handler_any_id),
-                 false);
+    esp_event_handler_instance_unregister(IP_EVENT,
+                                          IP_EVENT_STA_GOT_IP,
+                                          wifi_handler_got_ip);
+    esp_event_handler_instance_unregister(WIFI_EVENT,
+                                          ESP_EVENT_ANY_ID,
+                                          wifi_handler_any_id);
 
-    ERROR_RETURN(esp_wifi_disconnect(), false);
-    ERROR_RETURN(esp_wifi_stop(), false);
+    esp_wifi_disconnect();
+    esp_wifi_stop();
 
     return true;
 }
