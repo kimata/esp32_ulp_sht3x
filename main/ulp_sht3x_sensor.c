@@ -412,15 +412,12 @@ static void init_ulp_program()
 {
     ESP_ERROR_CHECK(rtc_gpio_init(gpio_scl));
     ESP_ERROR_CHECK(rtc_gpio_set_direction(gpio_scl, RTC_GPIO_MODE_INPUT_ONLY));
+
     ESP_ERROR_CHECK(rtc_gpio_init(gpio_sda));
     ESP_ERROR_CHECK(rtc_gpio_set_direction(gpio_sda, RTC_GPIO_MODE_INPUT_ONLY));
 
     ESP_ERROR_CHECK(rtc_gpio_init(gpio_bypass));
-    ESP_ERROR_CHECK(rtc_gpio_set_level(gpio_bypass, 1));
-    ESP_ERROR_CHECK(rtc_gpio_pulldown_en(gpio_bypass));
-    ESP_ERROR_CHECK(rtc_gpio_pullup_dis(gpio_bypass));
     ESP_ERROR_CHECK(rtc_gpio_set_direction(gpio_bypass, RTC_GPIO_MODE_OUTPUT_ONLY));
-    ESP_ERROR_CHECK(rtc_gpio_hold_en(gpio_bypass));
 
     ESP_ERROR_CHECK(
         ulp_load_binary(
