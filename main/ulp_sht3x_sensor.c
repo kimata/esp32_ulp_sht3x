@@ -43,7 +43,7 @@
 
 ////////////////////////////////////////////////////////////
 // Configuration
-#define FLUENTD_IP      "192.168.2.20"      // IP address of Fluentd
+#define FLUENTD_IP      "192.168.0.10"      // IP address of Fluentd
 #define FLUENTD_PORT    8888                // Port of FLuentd
 #define FLUENTD_TAG     "/sensor"           // Fluentd tag
 
@@ -66,7 +66,7 @@ SemaphoreHandle_t wifi_conn_done = NULL;
 
 #define BATTERY_THRESHOLD 2400              // battery threshold (operating voltage of SHT3x)
 
-#define WIFI_CONNECT_TIMEOUT 3
+#define WIFI_CONNECT_TIMEOUT 5
 #define CLOCK_MEASURE   1024
 
 #define TAG "ulp_sht3x"
