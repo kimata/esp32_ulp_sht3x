@@ -42,6 +42,9 @@
     .global bypass_mode_enable
 bypass_mode_enable: .long 0
 
+    .global post_count
+post_count: .long 0
+
     .global sense_full
 sense_full: .long 0
     

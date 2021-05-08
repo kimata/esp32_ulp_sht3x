@@ -249,6 +249,7 @@ static cJSON *sense_json(uint32_t battery_volt, wifi_ap_record_t *ap_info,
             cJSON_AddNumberToObject(item, "wifi_rssi", ap_info->rssi);
             cJSON_AddNumberToObject(item, "wifi_con_msec", wifi_con_msec);
             cJSON_AddNumberToObject(item, "retry", ulp_sense_count - SENSE_COUNT);
+            cJSON_AddNumberToObject(item, "post_count", ulp_post_count);
         }
 
         cJSON_AddItemToArray(root, item);
@@ -284,6 +285,7 @@ static bool process_sense_data(uint32_t battery_volt, wifi_ap_record_t *ap_info,
             break;
         }
         ESP_LOGI(TAG, "FLUENTD POST SUCCESSFUL");
+        ulp_post_count++;
 
         result = true;
     } while (0);
@@ -445,6 +447,7 @@ void app_main()
     if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_ULP) {
         bool status = false;
         ulp_sense_count = ulp_sense_count & 0xFFFF; // mask
+        ulp_post_count = ulp_post_count & 0xFFFF; // mask
 
         ESP_LOGI(TAG, "Send to fluentd");
         time_start = xTaskGetTickCount();
