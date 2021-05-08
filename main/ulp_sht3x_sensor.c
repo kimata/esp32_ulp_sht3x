@@ -438,6 +438,9 @@ void app_main()
     while (1);
 #endif
 
+    ESP_ERROR_CHECK(esp_task_wdt_init(60, true));
+    ESP_ERROR_CHECK(esp_task_wdt_add(NULL));
+
     vSemaphoreCreateBinary(wifi_conn_done);
 
     battery_volt = get_battery_voltage();
@@ -467,6 +470,7 @@ void app_main()
             // count has reached max
             ulp_sense_count = 0;
             ulp_sense_full = SENSE_COUNT;
+            esp_restart();
         } else {
             ESP_LOGI(TAG, "RETRY");
             ulp_sense_full++;
@@ -490,6 +494,8 @@ void app_main()
 
     ESP_ERROR_CHECK(esp_sleep_enable_ulp_wakeup());
     ESP_ERROR_CHECK(ulp_run(&ulp_entry - RTC_SLOW_MEM));
+
+    ESP_ERROR_CHECK(esp_task_wdt_delete(NULL));
 
     ESP_LOGI(TAG, "Go to sleep");
 
