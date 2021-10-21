@@ -438,7 +438,7 @@ void app_main()
     while (1);
 #endif
 
-    ESP_ERROR_CHECK(esp_task_wdt_init(60, true));
+    ESP_ERROR_CHECK(esp_task_wdt_init(30, true));
     ESP_ERROR_CHECK(esp_task_wdt_add(NULL));
 
     vSemaphoreCreateBinary(wifi_conn_done);
