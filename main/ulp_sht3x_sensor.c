@@ -43,7 +43,7 @@
 
 ////////////////////////////////////////////////////////////
 // Configuration
-#define FLUENTD_IP      "192.168.0.10"      // IP address of Fluentd
+#define FLUENTD_IP      "192.168.0.20"      // IP address of Fluentd
 #define FLUENTD_PORT    8888                // Port of FLuentd
 #define FLUENTD_TAG     "/sensor"           // Fluentd tag
 
